@@ -6,7 +6,7 @@ export function createInput(onPause, onRestart) {
     if (blockedKeys.has(event.code)) event.preventDefault();
     keys.add(event.code);
     if (event.repeat) return;
-    if (event.code === "KeyP" || event.code === "Escape") onPause();
+    if (event.code === "KeyP" || (event.code === "Escape" && !document.fullscreenElement)) onPause();
     if (event.code === "KeyR") onRestart();
   });
   window.addEventListener("keyup", (event) => keys.delete(event.code));
@@ -17,5 +17,6 @@ export function createInput(onPause, onRestart) {
     get right() { return keys.has("ArrowRight") || keys.has("KeyD"); },
     get jump() { return keys.has("Space") || keys.has("ArrowUp") || keys.has("KeyW"); },
     get down() { return keys.has("ArrowDown") || keys.has("KeyS"); },
+    get fire() { return keys.has("KeyF"); },
   };
 }

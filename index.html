@@ -1,58 +1,72 @@
 <!doctype html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#65c8ff">
-  <title>Pixel Adventure</title>
+  <title>הרפתקת הפיקסלים</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="game-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Pixel Adventure home"><span class="brand-icon">✦</span> PIXEL ADVENTURE</a>
-      <span class="topbar-note">A tiny world of big adventures</span>
-      <button class="icon-button" id="sound-button" type="button" aria-label="Toggle sound">♫ <span>Sound on</span></button>
+      <a class="brand" href="#" aria-label="הרפתקת הפיקסלים — דף הבית"><span class="brand-icon">✦</span> הרפתקת הפיקסלים</a>
+      <span class="topbar-note">עולם קטן, הרפתקאות גדולות</span>
+      <div class="topbar-actions">
+        <button class="icon-button" id="sound-button" type="button" aria-label="כיבוי הצליל" title="צליל פעיל"><span aria-hidden="true">♫</span><span>צליל פעיל</span></button>
+        <button class="icon-button" id="fullscreen-button" type="button" aria-label="הפעלת מסך מלא" title="מסך מלא"><span class="fullscreen-mark" aria-hidden="true">⛶</span><span id="fullscreen-label">מסך מלא</span></button>
+      </div>
+      <span class="fullscreen-status visually-hidden" id="fullscreen-status" role="status" aria-live="polite"></span>
     </header>
 
-    <section class="game-frame" aria-label="Pixel Adventure game">
-      <canvas id="game-canvas" width="960" height="540" aria-label="Game area"></canvas>
+    <section class="game-frame" aria-label="משחק הרפתקת הפיקסלים">
+      <canvas id="game-canvas" width="960" height="540" aria-label="אזור המשחק"></canvas>
       <div class="hud" id="hud" hidden>
-        <div class="hud-level"><span class="hud-label">WORLD</span><strong id="level-value">1 / 3</strong><span class="hud-room" id="room-name"></span></div>
-        <div class="hud-stat"><span class="hud-coin">●</span><span class="hud-label">COINS</span><strong id="coin-value">0</strong></div>
-        <div class="hud-stat"><span class="hud-star">★</span><span class="hud-label">SCORE</span><strong id="score-value">0</strong></div>
-        <div class="hud-stat lives-stat"><span class="hud-heart">♥</span><span class="hud-label">LIVES</span><strong id="lives-value">3</strong></div>
-        <button id="pause-button" class="hud-pause" type="button" aria-label="Pause game">Ⅱ</button>
+        <div class="hud-level"><span class="hud-label">שלב</span><strong id="level-value">1 / 3</strong><span class="hud-room" id="room-name"></span></div>
+        <div class="hud-stat"><span class="hud-coin">●</span><span class="hud-label">מטבעות</span><strong id="coin-value">0</strong></div>
+        <div class="hud-stat"><span class="hud-star">★</span><span class="hud-label">ניקוד</span><strong id="score-value">0</strong></div>
+        <div class="hud-stat best-score-stat" id="best-score-stat"><span class="hud-star">🏆</span><span class="hud-label">שיא</span><strong id="best-score-value">0</strong></div>
+        <div class="hud-stat lives-stat"><span class="hud-heart">♥</span><span class="hud-label">חיים</span><strong id="lives-value">3</strong></div>
+        <button id="pause-button" class="hud-pause" type="button" aria-label="השהיית המשחק" title="השהיה">Ⅱ</button>
       </div>
       <div class="game-hint" id="game-hint" hidden></div>
       <div class="screen" id="screen">
         <div class="screen-card">
-          <div class="screen-kicker" id="screen-kicker">A SUNNY LITTLE PLATFORMER</div>
-          <h1 id="screen-title">PIXEL<br><span>ADVENTURE</span></h1>
-          <p id="screen-copy">Run, jump, collect shiny things. Three little worlds are waiting!</p>
+          <div class="screen-kicker" id="screen-kicker">משחק פלטפורמות צבעוני</div>
+          <h1 id="screen-title">הרפתקת<br><span>הפיקסלים</span></h1>
+          <div class="screen-copy" id="screen-copy">רוצו, קפצו ואספו מטבעות — שלושה עולמות מחכים לכם!</div>
           <div class="welcome-tools" id="welcome-tools" hidden>
             <div class="avatar-preview-wrap">
-              <canvas id="avatar-preview" width="192" height="192" aria-label="Circular preview of your character"></canvas>
+              <canvas id="avatar-preview" width="192" height="192" aria-label="תצוגה עגולה של הדמות"></canvas>
               <span class="preview-spark spark-one">✦</span>
               <span class="preview-spark spark-two">✧</span>
             </div>
-            <label class="zoom-control" for="avatar-zoom">ZOOM <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"><span id="zoom-value">1.0×</span></label>
-            <label class="save-photo"><input id="save-photo" type="checkbox"><span>Save my photo on this device</span></label>
-            <p class="privacy-note">Your photo stays on this device. Drag the preview to position it.</p>
+            <label class="zoom-control" for="avatar-zoom">הגדלה <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1"><span id="zoom-value">1.0×</span></label>
+            <label class="save-photo"><input id="save-photo" type="checkbox"><span>שמירת התמונה במכשיר הזה</span></label>
+            <p class="privacy-note">התמונה נשארת במכשיר. גררו את התצוגה כדי למקם את הפנים.</p>
             <p class="avatar-status" id="avatar-status" role="status" aria-live="polite"></p>
           </div>
           <div class="screen-actions" id="screen-actions">
-            <button class="primary-button" data-action="play">Start adventure <span>→</span></button>
-            <button class="secondary-button" data-action="instructions">How to play</button>
+            <button class="primary-button" data-action="play">התחלת המשחק <span>←</span></button>
+            <button class="secondary-button" data-action="instructions">איך משחקים?</button>
           </div>
-          <div class="screen-foot" id="screen-foot">MADE FOR CURIOUS EXPLORERS</div>
+          <div class="screen-foot" id="screen-foot">הרפתקה לסקרנים ולסקרניות</div>
         </div>
       </div>
-      <input id="face-upload" type="file" accept="image/jpeg,image/png,image/webp" hidden aria-label="Choose a JPG, PNG, or WebP face photo">
+      <aside class="powerup-toast" id="powerup-toast" aria-live="polite" hidden>
+        <canvas id="powerup-toast-icon" width="56" height="56" aria-hidden="true"></canvas>
+        <div class="powerup-toast-copy">
+          <strong id="powerup-toast-name"></strong>
+          <p id="powerup-toast-description"></p>
+          <span id="powerup-toast-key" hidden></span>
+        </div>
+        <button id="powerup-toast-dismiss" type="button" aria-label="סגירת הודעת הכוח" title="סגירה">×</button>
+      </aside>
+      <input id="face-upload" type="file" accept="image/jpeg,image/png,image/webp" hidden aria-label="בחירת תמונת פנים מסוג JPG, PNG או WebP">
     </section>
     <footer class="below-game">
-      <span><kbd>←</kbd> <kbd>→</kbd> move <span class="dot">·</span> <kbd>SPACE</kbd> jump <span class="dot">·</span> <kbd>↓</kbd> enter tunnels</span>
-      <span><kbd>P</kbd> pause <span class="dot">·</span> <kbd>R</kbd> restart level</span>
+      <span><kbd>←</kbd> <kbd>→</kbd> תנועה <span class="dot">·</span> <kbd>רווח</kbd> קפיצה <span class="dot">·</span> <kbd>↓</kbd> כניסה למנהרות</span>
+      <span><kbd>P</kbd> השהיה <span class="dot">·</span> <kbd>R</kbd> התחלה מחדש</span>
     </footer>
   </main>
   <script type="module" src="js/game.js"></script>

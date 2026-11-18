@@ -1,8 +1,22 @@
 import { createInput } from "./input.js";
 import { levels } from "./levels.js";
-import { createPlayer, updatePlayer, drawPlayer, playerTouches } from "./player.js";
+import { createPlayer, updatePlayer, drawPlayer, playerTouches, setPlayerGrowth } from "./player.js";
 import { createEnemies, updateEnemies, drawEnemies } from "./enemies.js";
 import { createCoins, drawCoins } from "./coins.js";
+import {
+  POWERUPS,
+  createPlayerFireball,
+  createPowerups,
+  createSurpriseBoxes,
+  drawPlayerFireballs,
+  drawPowerupIcon,
+  drawPowerups,
+  drawSurpriseBoxes,
+  releaseSurpriseReward,
+  resetLevelSurpriseRewards,
+  updatePlayerFireballs,
+  updateWorldItems,
+} from "./powerups.js";
 import { createAvatarCustomization } from "./avatar.js";
 import {
   canStompToad,
@@ -25,6 +39,16 @@ const welcomeTools = document.querySelector("#welcome-tools");
 const screenFoot = document.querySelector("#screen-foot");
 const hud = document.querySelector("#hud");
 const soundButton = document.querySelector("#sound-button");
+const powerupToast = document.querySelector("#powerup-toast");
+const powerupToastIcon = document.querySelector("#powerup-toast-icon");
+const powerupToastName = document.querySelector("#powerup-toast-name");
+const powerupToastDescription = document.querySelector("#powerup-toast-description");
+const powerupToastKey = document.querySelector("#powerup-toast-key");
+const bestScoreValue = document.querySelector("#best-score-value");
+const fullscreenButton = document.querySelector("#fullscreen-button");
+const fullscreenLabel = document.querySelector("#fullscreen-label");
+const fullscreenStatus = document.querySelector("#fullscreen-status");
+const gameShell = document.querySelector(".game-shell");
 const pauseButton = document.querySelector("#pause-button");
 const gameHint = document.querySelector("#game-hint");
 const roomName = document.querySelector("#room-name");
@@ -63,6 +87,10 @@ let screenShake = 0;
 let soundEnabled = true;
 let checkpointX = 55;
 let checkpointReached = false;
+let bestScore = loadBestScore();
+let seenPowerupIds = loadSeenPowerups();
+let powerupToastTimer;
+let skipInstructionsCheckbox;
 
 const input = createInput(togglePause, restartLevel);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -83,17 +111,22 @@ function setupLevel(index) {
       platforms: level.platforms,
       enemies: createEnemies(level.enemies),
       coins: createCoins(level.coins),
+      powerups: createPowerups(level.powerups),
+      boxes: createSurpriseBoxes(level.boxes),
+      playerFireballs: [],
     };
     enemies = runtime.enemies;
     coins = runtime.coins;
-    player = createPlayer(checkpointX, 420);
+    player = createPlayer(checkpointX, 436);
+    player.grounded = true;
     cameraX = clamp(player.x - 180, 0, level.width - canvas.width);
   }
   gameHint.hidden = true;
 }
 
-function activateCaveArea(index, x, y) {
+function activateCaveArea(index, x, y, preservePowerups = false) {
   const level = levels[levelIndex];
+  const previousPlayer = player;
   areaIndex = index;
   activeArea = level.areas[index];
   if (!areaStates.has(index)) areaStates.set(index, createCaveRuntime(activeArea));
@@ -101,6 +134,14 @@ function activateCaveArea(index, x, y) {
   enemies = [];
   coins = runtime.coins;
   player = createPlayer(x, y);
+  player.grounded = true;
+  if (preservePowerups && previousPlayer) {
+    player.firePower = previousPlayer.firePower;
+    player.starTimer = previousPlayer.starTimer;
+    player.fireCooldown = previousPlayer.fireCooldown;
+    player.invulnerable = previousPlayer.invulnerable;
+    setPlayerGrowth(player, previousPlayer.grown, [...runtime.platforms, ...runtime.boxes]);
+  }
   cameraX = clamp(player.x - 180, 0, activeArea.width - canvas.width);
   roomName.textContent = activeArea.name;
   gameHint.hidden = true;
@@ -113,6 +154,8 @@ function startGame() {
   checkpointReached = false;
   setupLevel(0);
   state = "playing";
+  syncPauseButton();
+  dismissPowerupToast();
   hud.hidden = false;
   hideScreen();
   updateHud();
@@ -124,6 +167,7 @@ function restartLevel() {
   if (state !== "playing" && state !== "paused") return;
   setupLevel(levelIndex);
   state = "playing";
+  syncPauseButton();
   hideScreen();
   updateCaveAmbience(levelIndex === 1);
 }
@@ -135,15 +179,17 @@ function loseLife() {
   if (lifeCount <= 0) {
     state = "gameover";
     hud.hidden = true;
-    showScreen("GAME OVER", "GAME OVER", `You collected ${score} points. Every great explorer gets another try!`, [
-      ["Try again", "play"], ["Main menu", "menu"],
+    showScreen("המשחק נגמר", "המשחק נגמר", `אספתם ${score} נקודות. אפשר לצאת להרפתקה נוספת!`, [
+      ["ניסיון נוסף", "play"], ["לתפריט הראשי", "menu"],
     ]);
     return;
   }
+  resetLevelSurpriseRewards(levels[levelIndex], areaStates, runtime);
   if (levels[levelIndex].underground) {
     activateCaveArea(caveCheckpoint.areaIndex, caveCheckpoint.x, caveCheckpoint.y);
   } else {
-    player = createPlayer(checkpointX, 420);
+    player = createPlayer(checkpointX, 436);
+    player.grounded = true;
   }
   player.invulnerable = 1.8;
   cameraX = clamp(player.x - 180, 0, activeArea.width - canvas.width);
@@ -155,13 +201,15 @@ function completeLevel() {
   if (levelIndex === levels.length - 1) {
     state = "victory";
     hud.hidden = true;
-    showScreen("YOU DID IT!", "YOU DID<br><span>IT!</span>", `All three worlds explored. You finished with ${score} points. What an adventure!`, [
-      ["Play again", "play"], ["Main menu", "menu"],
+    showScreen("ניצחתם!", "ניצחתם!", `השלמתם את כל שלושת העולמות עם ${score} נקודות. איזו הרפתקה נהדרת!`, [
+      ["משחק חדש", "play"], ["לתפריט הראשי", "menu"],
     ]);
   } else {
     checkpointX = 55;
     checkpointReached = false;
+    const firePower = player.firePower;
     setupLevel(levelIndex + 1);
+    player.firePower = firePower;
     updateCaveAmbience(levelIndex === 1);
     updateHud();
   }
@@ -170,54 +218,115 @@ function completeLevel() {
 function togglePause() {
   if (state === "playing") {
     state = "paused";
-    showScreen("TAKE A BREATHER", "PAUSED", "Your adventure is right where you left it.", [
-      ["Keep going", "resume"], ["Restart level", "restart"], ["Main menu", "menu"],
+    showScreen("עוצרים לרגע", "המשחק בהשהיה", "ההרפתקה מחכה בדיוק במקום שבו עצרתם.", [
+      ["המשך משחק", "resume"], ["התחלת השלב מחדש", "restart"], ["לתפריט הראשי", "menu"],
     ]);
+    syncPauseButton();
   } else if (state === "paused") {
     state = "playing";
     hideScreen();
+    syncPauseButton();
   }
 }
 
 function showInstructions() {
   screen.hidden = false;
+  screen.classList.add("instructions-screen");
+  powerupToast.hidden = true;
   screenCard.classList.remove("welcome-card");
+  screenCard.classList.add("instructions-card");
   welcomeTools.hidden = true;
-  screenKicker.textContent = "YOUR ADVENTURE, YOUR RULES";
-  screenTitle.innerHTML = "HOW TO<br><span>PLAY</span>";
-  screenCopy.innerHTML = '<div class="instructions"><strong>Move:</strong> ← → or A / D<br><strong>Jump:</strong> Space, ↑ or W<br><strong>Enter tunnels:</strong> ↓ when prompted<br><strong>Pause:</strong> P or Escape &nbsp; <strong>Restart:</strong> R<br><br>Collect coins, bounce on friendly critters, and look out for fire toads, falling rocks, lava and crumbling ledges. Reach glowing flags to save a checkpoint.</div>';
-  screenActions.innerHTML = '<button class="primary-button" data-action="play">Got it — let’s go <span>→</span></button><button class="secondary-button" data-action="menu">Back</button>';
-  screenFoot.textContent = "THREE WORLDS • THREE LIVES • LOTS OF COINS";
+  screenKicker.textContent = "ההרפתקה שלכם, הכללים שלכם";
+  screenTitle.innerHTML = "איך<br><span>משחקים?</span>";
+  screenCopy.innerHTML = buildInstructionsMarkup();
+  for (const icon of screenCopy.querySelectorAll("[data-collectible]")) {
+    drawPowerupIcon(icon.getContext("2d"), icon.dataset.collectible, 0, 0, icon.width, elapsed);
+  }
+  skipInstructionsCheckbox = document.querySelector("#skip-instructions");
+  skipInstructionsCheckbox.checked = readBooleanPreference("pixel-adventure-skip-instructions");
+  screenActions.innerHTML = '<button class="primary-button" data-action="begin-game">הבנתי, בואו נשחק! <span>←</span></button><button class="secondary-button" data-action="menu">חזרה לתפריט</button>';
+  screenFoot.textContent = "שלושה עולמות · שלושה חיים · המון מטבעות";
+}
+
+function requestStartGame() {
+  if (readBooleanPreference("pixel-adventure-skip-instructions")) startGame();
+  else showInstructions();
+}
+
+function beginGameFromInstructions() {
+  if (skipInstructionsCheckbox?.checked) {
+    writeLocalPreference("pixel-adventure-skip-instructions", "true");
+  } else {
+    removeLocalPreference("pixel-adventure-skip-instructions");
+  }
+  startGame();
+}
+
+function buildInstructionsMarkup() {
+  const controls = [
+    ["תנועה ימינה", "→ / D"],
+    ["תנועה שמאלה", "← / A"],
+    ["קפיצה", "רווח / ↑ / W"],
+    ["יריית אש", "F"],
+    ["כניסה למנהרות", "↓ / S"],
+    ["השהיה", "P"],
+    ["התחלת השלב מחדש", "R"],
+  ];
+  const controlCards = controls.map(([label, keys]) =>
+    `<div class="instruction-control"><span>${label}</span><kbd>${keys}</kbd></div>`).join("");
+  const collectibleCards = POWERUPS.map((item) =>
+    `<article class="powerup-card"><canvas class="powerup-icon" width="56" height="56" data-collectible="${item.id}" aria-label="איור: ${item.name}"></canvas><div><strong>${item.name}</strong><p>${item.description}</p></div></article>`).join("");
+
+  return `<div class="instructions-panel">
+    <div class="instruction-column">
+      <section class="instruction-section"><h2>איך שולטים במשחק?</h2><div class="instruction-controls">${controlCards}</div></section>
+      <section class="instruction-section"><h2>המטרה והסכנות</h2><ul class="instruction-objectives">
+        <li>אספו מטבעות, צברו נקודות ושברו את השיא האישי.</li>
+        <li>קפצו על אויבים מלמעלה כדי להביס אותם; הימנעו ממגע מהצד.</li>
+        <li>קפצו מעל כדורי אש, לבה, מלכודות וסלעים נופלים.</li>
+        <li>התקדמו עד לנקודות הביקורת; אם תאבדו חיים, תחזרו לנקודה האחרונה. הגיעו לדגל הסיום כדי להתקדם.</li>
+        <li>במערה לחצו על <kbd>↓</kbd> ליד פתח כדי להיכנס למנהרה.</li>
+      </ul></section>
+    </div>
+    <section class="instruction-section"><h2>פריטים וכוחות</h2><div class="powerup-grid">${collectibleCards}</div></section>
+  </div>
+  <label class="skip-intro"><input id="skip-instructions" type="checkbox"><span>אל תציג שוב בכניסה הבאה</span></label>`;
 }
 
 function showScreen(kicker, title, copy, actions) {
   screen.hidden = false;
+  screen.classList.remove("instructions-screen");
+  powerupToast.hidden = true;
   screenCard.classList.remove("welcome-card");
+  screenCard.classList.remove("instructions-card");
   welcomeTools.hidden = true;
   screenKicker.textContent = kicker;
   screenTitle.innerHTML = title;
   screenCopy.textContent = copy;
   screenActions.innerHTML = actions.map(([label, action], index) =>
-    `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-action="${action}">${label}${index === 0 ? " <span>→</span>" : ""}</button>`).join("");
-  screenFoot.textContent = "PAUSE ANYTIME WITH P OR ESC";
+    `<button class="${index === 0 ? "primary-button" : "secondary-button"}" data-action="${action}">${label}${index === 0 ? " <span>←</span>" : ""}</button>`).join("");
+  screenFoot.textContent = "אפשר להשהות בכל עת בלחיצה על P או Escape";
 }
 
 function showMenu() {
   state = "menu";
   hud.hidden = true;
   gameHint.hidden = true;
+  powerupToast.hidden = true;
   updateCaveAmbience(false);
   screen.hidden = false;
+  screen.classList.remove("instructions-screen");
   screenCard.classList.add("welcome-card");
+  screenCard.classList.remove("instructions-card");
   welcomeTools.hidden = false;
-  screenKicker.textContent = "A SUNNY LITTLE PLATFORMER";
-  screenTitle.innerHTML = "PIXEL<br><span>ADVENTURE</span>";
-  screenCopy.textContent = "Become the hero of your own adventure!";
+  screenKicker.textContent = "משחק פלטפורמות צבעוני";
+  screenTitle.innerHTML = "הרפתקת<br><span>הפיקסלים</span>";
+  screenCopy.textContent = "הפכו לגיבורים בהרפתקה משלכם!";
   const removeButton = avatarCustomization.getAvatar()
-    ? '<button class="secondary-button remove-photo-button" data-action="remove-photo">Remove photo</button>'
+    ? '<button class="secondary-button remove-photo-button" data-action="remove-photo">הסרת התמונה</button>'
     : "";
-  screenActions.innerHTML = `<button class="primary-button" data-action="play">Play Game <span>→</span></button><button class="secondary-button" data-action="upload">Upload Your Face</button><button class="secondary-button" data-action="change-photo">Change Photo</button>${removeButton}<button class="text-button" data-action="instructions">How to play</button>`;
-  screenFoot.textContent = "YOUR PHOTO STAYS RIGHT HERE ON YOUR DEVICE";
+  screenActions.innerHTML = `<button class="primary-button" data-action="play">התחלת המשחק <span>←</span></button><button class="secondary-button" data-action="upload">העלאת תמונת פנים</button><button class="secondary-button" data-action="change-photo">החלפת תמונה</button>${removeButton}<button class="text-button" data-action="instructions">איך משחקים?</button>`;
+  screenFoot.textContent = "התמונה נשארת כאן, במכשיר שלכם";
 }
 
 function hideScreen() { screen.hidden = true; }
@@ -225,30 +334,227 @@ function hideScreen() { screen.hidden = true; }
 screen.addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]")?.dataset.action;
   if (!action) return;
-  if (action === "play") startGame();
+  if (action === "play") requestStartGame();
+  else if (action === "begin-game") beginGameFromInstructions();
   else if (action === "upload" || action === "change-photo") avatarCustomization.openFilePicker();
   else if (action === "remove-photo") {
     avatarCustomization.removePhoto();
     showMenu();
   }
   else if (action === "instructions") showInstructions();
-  else if (action === "resume") { state = "playing"; hideScreen(); }
+  else if (action === "resume") { state = "playing"; hideScreen(); syncPauseButton(); }
   else if (action === "restart") restartLevel();
   else if (action === "menu") showMenu();
 });
 
 pauseButton.addEventListener("click", togglePause);
+document.querySelector("#powerup-toast-dismiss").addEventListener("click", dismissPowerupToast);
 soundButton.addEventListener("click", () => {
   soundEnabled = !soundEnabled;
-  soundButton.innerHTML = `${soundEnabled ? "♫" : "♪"} <span>Sound ${soundEnabled ? "on" : "off"}</span>`;
+  const soundLabel = soundEnabled ? "צליל פעיל" : "צליל כבוי";
+  soundButton.innerHTML = `<span aria-hidden="true">${soundEnabled ? "♫" : "♪"}</span><span>${soundLabel}</span>`;
+  soundButton.setAttribute("aria-label", soundEnabled ? "כיבוי הצליל" : "הפעלת הצליל");
+  soundButton.title = soundLabel;
   updateCaveAmbience(levelIndex === 1 && state === "playing");
   if (soundEnabled) playTone(520, 0.08);
 });
+
+fullscreenButton.addEventListener("click", async () => {
+  setFullscreenStatus("");
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else if (document.fullscreenEnabled && gameShell.requestFullscreen) {
+      await gameShell.requestFullscreen();
+    } else {
+      setFullscreenStatus("הדפדפן הזה אינו תומך במצב מסך מלא.");
+    }
+  } catch (error) {
+    setFullscreenStatus("לא ניתן להפעיל מסך מלא. אפשר לנסות שוב.");
+    console.error("הפעלת מסך מלא נכשלה.", error);
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const isFullscreen = document.fullscreenElement === gameShell;
+  const label = isFullscreen ? "יציאה ממסך מלא" : "מסך מלא";
+  fullscreenLabel.textContent = label;
+  fullscreenButton.title = label;
+  fullscreenButton.setAttribute("aria-label", isFullscreen ? "יציאה ממסך מלא" : "הפעלת מסך מלא");
+  setFullscreenStatus("");
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.code !== "Escape" || !document.fullscreenElement) return;
+  event.preventDefault();
+  document.exitFullscreen().catch((error) => {
+    setFullscreenStatus("לא ניתן לצאת ממצב מסך מלא.");
+    console.error("יציאה ממסך מלא נכשלה.", error);
+  });
+});
+
+function setFullscreenStatus(message) {
+  fullscreenStatus.textContent = message;
+  fullscreenStatus.classList.toggle("visually-hidden", !message);
+}
+
+function syncPauseButton() {
+  const isPaused = state === "paused";
+  pauseButton.setAttribute("aria-label", isPaused ? "המשך המשחק" : "השהיית המשחק");
+  pauseButton.title = isPaused ? "המשך משחק" : "השהיה";
+}
+
+function updatePowerupTimers(dt) {
+  player.starTimer = Math.max(0, player.starTimer - dt);
+  player.fireCooldown = Math.max(0, player.fireCooldown - dt);
+}
+
+function collectRoomPowerups() {
+  for (const item of runtime.powerups || []) {
+    if (item.collected || (item.type === "heart" && lifeCount >= 5) || !playerTouches(player, item, 2)) continue;
+    if (item.type === "growth" &&
+        !setPlayerGrowth(player, true, [...runtime.platforms, ...runtime.boxes])) continue;
+    item.collected = true;
+    applyPowerup(item.type);
+  }
+}
+
+function applyPowerup(type) {
+  if (type === "growth" &&
+      !setPlayerGrowth(player, true, [...runtime.platforms, ...runtime.boxes])) return false;
+  else if (type === "fire") player.firePower = true;
+  else if (type === "star") player.starTimer = 8;
+  else if (type === "heart") lifeCount = Math.min(5, lifeCount + 1);
+  notifyFirstPowerup(type);
+  updateHud();
+  playTone(type === "star" ? 940 : 720, 0.12, "triangle");
+}
+
+function takePlayerHit(fromEnemy = false) {
+  if (player.invulnerable > 0 || player.starTimer > 0) return false;
+  if (player.firePower) player.firePower = false;
+  if (fromEnemy && player.grown) {
+    setPlayerGrowth(player, false);
+    player.invulnerable = 1.15;
+    return true;
+  }
+  loseLife();
+  return true;
+}
+
+function tryShootFireball() {
+  if (!input.fire || !player.firePower || player.fireCooldown > 0) return;
+  runtime.playerFireballs.push(createPlayerFireball(player));
+  player.fireCooldown = 0.38;
+  playTone(520, 0.07, "square");
+}
+
+function updatePlayerProjectiles(dt) {
+  const targets = [...enemies, ...(runtime.toads || [])];
+  const defeated = updatePlayerFireballs(runtime.playerFireballs, dt, activeArea.width, runtime.platforms, targets);
+  if (defeated) {
+    addScore(defeated * 100);
+    playTone(390, 0.09);
+  }
+}
+
+function openSurpriseBox(box) {
+  if (box.opened) return;
+  box.opened = true;
+  box.bumpTimer = 0.3;
+  releaseSurpriseReward(runtime, box);
+  playTone(320, 0.1, "square");
+}
+
+function notifyFirstPowerup(type) {
+  if (seenPowerupIds.has(type)) return;
+  const item = POWERUPS.find((powerup) => powerup.id === type);
+  if (!item) return;
+  seenPowerupIds.add(type);
+  writeLocalPreference("pixel-adventure-seen-powerups", JSON.stringify([...seenPowerupIds]));
+  showToast(item.id, item.name, item.notification || item.description, item.key);
+}
+
+function showToast(type, name, description, key = "") {
+  dismissPowerupToast();
+  powerupToastName.textContent = name;
+  powerupToastDescription.textContent = description;
+  powerupToastKey.innerHTML = key ? `מקש <kbd>${key}</kbd>` : "";
+  powerupToastKey.hidden = !key;
+  const toastContext = powerupToastIcon.getContext("2d");
+  toastContext.clearRect(0, 0, powerupToastIcon.width, powerupToastIcon.height);
+  drawPowerupIcon(toastContext, type, 0, 0, powerupToastIcon.width, elapsed);
+  powerupToast.hidden = false;
+  powerupToastTimer = setTimeout(dismissPowerupToast, 7000);
+}
+
+function dismissPowerupToast() {
+  clearTimeout(powerupToastTimer);
+  powerupToast.hidden = true;
+}
+
+function addScore(points) {
+  score += points;
+  if (score > bestScore) {
+    bestScore = score;
+    writeLocalPreference("pixel-adventure-best-score", String(bestScore));
+  }
+}
+
+function loadBestScore() {
+  const value = Number(readLocalPreference("pixel-adventure-best-score"));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function loadSeenPowerups() {
+  const raw = readLocalPreference("pixel-adventure-seen-powerups");
+  if (!raw) return new Set();
+  try {
+    const stored = JSON.parse(raw);
+    return new Set(Array.isArray(stored) ? stored.filter((id) => POWERUPS.some((item) => item.id === id)) : []);
+  } catch (error) {
+    console.error("קריאת העדפות הודעות הכוח נכשלה.", error);
+    return new Set();
+  }
+}
+
+function readBooleanPreference(key) {
+  return readLocalPreference(key) === "true";
+}
+
+function readLocalPreference(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    setFullscreenStatus("האחסון המקומי אינו זמין בדפדפן הזה.");
+    console.error("קריאת ההעדפה המקומית נכשלה.", error);
+    return null;
+  }
+}
+
+function writeLocalPreference(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    setFullscreenStatus("לא ניתן לשמור את ההעדפה במכשיר הזה.");
+    console.error("שמירת ההעדפה המקומית נכשלה.", error);
+  }
+}
+
+function removeLocalPreference(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    setFullscreenStatus("לא ניתן לעדכן את ההעדפה במכשיר הזה.");
+    console.error("עדכון ההעדפה המקומית נכשל.", error);
+  }
+}
 
 function updateHud() {
   document.querySelector("#level-value").textContent = `${levelIndex + 1} / ${levels.length}`;
   document.querySelector("#coin-value").textContent = levelCoins;
   document.querySelector("#score-value").textContent = score;
+  bestScoreValue.textContent = bestScore;
   document.querySelector("#lives-value").textContent = lifeCount;
   roomName.textContent = levels[levelIndex].underground ? activeArea.name : "";
 }
@@ -257,6 +563,7 @@ function update(dt) {
   if (state !== "playing") return;
   screenShake = Math.max(0, screenShake - dt);
   portalCooldown = Math.max(0, portalCooldown - dt);
+  updatePowerupTimers(dt);
   if (tunnelTransition) {
     updateTunnelTransition(dt);
     return;
@@ -267,14 +574,19 @@ function update(dt) {
     return;
   }
 
-  updatePlayer(player, input, dt, runtime.platforms);
+  const hitBox = updatePlayer(player, input, dt, runtime.platforms, runtime.boxes);
+  if (hitBox) openSurpriseBox(hitBox);
+  tryShootFireball();
   updateEnemies(enemies, dt, runtime.platforms);
+  updateWorldItems(runtime, dt);
+  updatePlayerProjectiles(dt);
+  collectRoomPowerups();
 
   for (const coin of coins) {
     if (!coin.collected && playerTouches(player, coin, 3)) {
       coin.collected = true;
       levelCoins++;
-      score += 10;
+      addScore(10);
       playTone(820, 0.06);
     }
   }
@@ -284,10 +596,10 @@ function update(dt) {
     if (player.vy > 40 && previousBottom <= enemy.y + 12) {
       enemy.alive = false;
       player.vy = -350;
-      score += 100;
+      addScore(100);
       playTone(390, 0.09);
     } else {
-      loseLife();
+      takePlayerHit(true);
       break;
     }
   }
@@ -296,7 +608,7 @@ function update(dt) {
     checkpointReached = true;
     checkpointX = Math.floor(activeArea.width * 0.5);
   }
-  if (player.y > canvas.height + 70) loseLife();
+  if (player.y > canvas.height + 70) takePlayerHit();
   if (player.x >= activeArea.width - 92) completeLevel();
   cameraX += (clamp(player.x - canvas.width * 0.36, 0, activeArea.width - canvas.width) - cameraX) * Math.min(1, dt * 5);
   updateHud();
@@ -304,23 +616,30 @@ function update(dt) {
 
 function updateCave(dt) {
   const events = updateCaveRuntime(runtime, activeArea, player, dt);
-  updatePlayer(player, input, dt, runtime.platforms);
+  const hitBox = updatePlayer(player, input, dt, runtime.platforms, runtime.boxes);
+  if (hitBox) openSurpriseBox(hitBox);
+  tryShootFireball();
+  updateWorldItems(runtime, dt);
+  updatePlayerProjectiles(dt);
+  collectRoomPowerups();
 
   let shouldLoseLife = events.damage;
+  let enemyHit = false;
   for (const toad of runtime.toads) {
     if (canStompToad(player, toad, dt)) {
-      score += 150;
+      addScore(150);
       player.vy = -360;
       playTone(330, 0.1);
     } else if (toad.alive && playerTouches(player, toad, 4) && player.invulnerable <= 0) {
       shouldLoseLife = true;
+      enemyHit = true;
     }
   }
   for (const coin of coins) {
     if (!coin.collected && playerTouches(player, coin, 3)) {
       coin.collected = true;
       levelCoins++;
-      score += 10;
+      addScore(10);
       playTone(820, 0.06);
     }
   }
@@ -331,14 +650,14 @@ function updateCave(dt) {
     playTone(110, 0.12, "triangle");
   }
   screenShake = Math.max(screenShake, events.shake);
-  if (shouldLoseLife) loseLife();
-  if (player.y > canvas.height + 65) loseLife();
+  if (shouldLoseLife) takePlayerHit(enemyHit);
+  if (player.y > canvas.height + 65) takePlayerHit();
   saveCaveCheckpoint();
 
   const tunnel = findNearbyTunnel(activeArea, player);
   gameHint.hidden = !tunnel;
   if (tunnel) {
-    gameHint.textContent = `Press ↓ to enter · ${tunnel.label}`;
+    gameHint.innerHTML = `לחצו <bdi>↓</bdi> כדי להיכנס · ${tunnel.label}`;
     if (input.down && portalCooldown <= 0) {
       beginTunnel(tunnel);
       updateHud();
@@ -370,7 +689,7 @@ function updateTunnelTransition(dt) {
   tunnelTransition.elapsed += dt;
   if (!tunnelTransition.switched && tunnelTransition.elapsed >= tunnelTransition.duration / 2) {
     const destination = tunnelTransition.destination;
-    activateCaveArea(destination.area, destination.x, destination.y);
+    activateCaveArea(destination.area, destination.x, destination.y, true);
     portalCooldown = 0.9;
     tunnelTransition.switched = true;
   }
@@ -500,6 +819,9 @@ function draw() {
     drawBackground();
     if (player && state !== "menu") {
       drawPlatforms(activeArea.platforms);
+      drawSurpriseBoxes(ctx, runtime.boxes, cameraX, elapsed);
+      drawPowerups(ctx, runtime.powerups, cameraX, elapsed);
+      drawPlayerFireballs(ctx, runtime.playerFireballs, cameraX, elapsed);
       drawCoins(ctx, coins, cameraX, elapsed);
       drawEnemies(ctx, enemies, cameraX);
       drawFinishFlag();
@@ -570,7 +892,7 @@ function playTone(frequency, duration, type = "sine") {
     oscillator.start();
     oscillator.stop(audioContext.currentTime + duration);
   } catch (error) {
-    console.warn("Audio is unavailable in this browser.", error);
+    console.warn("שמע אינו זמין בדפדפן הזה.", error);
   }
 }
 
@@ -607,7 +929,7 @@ function updateCaveAmbience(active) {
     caveDrone = oscillator;
     caveDroneGain = gain;
   } catch (error) {
-    console.warn("Cave ambience is unavailable in this browser.", error);
+    console.warn("צלילי המערה אינם זמינים בדפדפן הזה.", error);
   }
 }
 

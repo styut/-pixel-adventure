@@ -1,5 +1,12 @@
 import { createCoins } from "./coins.js";
 import { playerTouches } from "./player.js";
+import {
+  createPowerups,
+  createSurpriseBoxes,
+  drawPlayerFireballs,
+  drawPowerups,
+  drawSurpriseBoxes,
+} from "./powerups.js";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 let darknessCanvas;
@@ -32,6 +39,9 @@ export function createCaveRuntime(room) {
     movingPlatforms,
     crumblingPlatforms,
     coins: createCoins(room.coins || []),
+    powerups: createPowerups(room.powerups || []),
+    boxes: createSurpriseBoxes(room.boxes || []),
+    playerFireballs: [],
     toads: (room.fireToads || []).map((toad, index) => ({
       ...toad,
       w: 48,
@@ -244,9 +254,12 @@ export function drawCaveRoom(ctx, room, runtime, cameraX, elapsed) {
   drawLava(ctx, room.lava || [], cameraX, elapsed);
   drawCaveDecor(ctx, room, cameraX, elapsed);
   drawCavePlatforms(ctx, runtime.platforms, cameraX);
+  drawSurpriseBoxes(ctx, runtime.boxes, cameraX, elapsed);
+  drawPowerups(ctx, runtime.powerups, cameraX, elapsed);
   drawStalactites(ctx, runtime.stalactites, cameraX);
   drawFireTraps(ctx, runtime.traps, cameraX, runtime.time);
   drawFireToads(ctx, runtime.toads, cameraX);
+  drawPlayerFireballs(ctx, runtime.playerFireballs, cameraX, elapsed);
   drawFireballs(ctx, runtime.fireballs, cameraX, runtime.time);
   drawParticles(ctx, runtime.particles, cameraX);
   drawTunnels(ctx, room.tunnels || [], cameraX, elapsed);
@@ -558,6 +571,7 @@ export function drawCaveDarkness(ctx, room, runtime, player, cameraX, elapsed) {
     }
   }
   for (const fireball of runtime.fireballs) cutLight(darknessContext, fireball.x + fireball.w / 2 - cameraX, fireball.y + fireball.h / 2, 72);
+  for (const fireball of runtime.playerFireballs) cutLight(darknessContext, fireball.x + fireball.w / 2 - cameraX, fireball.y + fireball.h / 2, 72);
   darknessContext.globalCompositeOperation = "source-over";
   ctx.drawImage(darknessCanvas, 0, 0);
 
@@ -566,6 +580,7 @@ export function drawCaveDarkness(ctx, room, runtime, player, cameraX, elapsed) {
   for (const [x, y, color] of room.crystals || []) drawGlow(ctx, x - cameraX, y, 53, color, 0.24);
   for (const lava of room.lava || []) drawGlow(ctx, lava.x + lava.w / 2 - cameraX, lava.y + 4, 72, "#ff612f", 0.27);
   for (const fireball of runtime.fireballs) drawGlow(ctx, fireball.x + fireball.w / 2 - cameraX, fireball.y + fireball.h / 2, 48, "#ff6d36", 0.44);
+  for (const fireball of runtime.playerFireballs) drawGlow(ctx, fireball.x + fireball.w / 2 - cameraX, fireball.y + fireball.h / 2, 48, "#ff6d36", 0.44);
   for (const toad of runtime.toads) {
     if (toad.alive) drawGlow(ctx, toad.x + toad.w / 2 - cameraX, toad.y + 12, 30, "#ff922f", 0.2);
     if (toad.alive && toad.state === "windup") drawGlow(ctx, toad.x + toad.w / 2 - cameraX, toad.y + 20, 48, "#ff963d", 0.27);

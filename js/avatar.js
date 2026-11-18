@@ -33,7 +33,7 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
   async function acceptFile(file) {
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setStatus("Choose a JPG, PNG, or WebP image.");
+      setStatus("יש לבחור תמונת JPG, PNG או WebP.");
       fileInput.value = "";
       return;
     }
@@ -42,13 +42,13 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
       avatar = { image, blob: file, zoom: 1, offsetX: 0, offsetY: 0 };
       zoomInput.value = "1";
       zoomValue.textContent = "1.0×";
-      setStatus("Photo ready! Drag the circle to position your face.");
+      setStatus("התמונה מוכנה! גררו את העיגול כדי למקם את הפנים.");
       drawPreview();
       onAvatarChange();
       await persistIfRequested();
     } catch (error) {
-      setStatus("Could not read that photo. Please choose another image.");
-      console.error("Could not load the selected character photo.", error);
+      setStatus("לא ניתן לקרוא את התמונה. נסו לבחור תמונה אחרת.");
+      console.error("טעינת תמונת הדמות שנבחרה נכשלה.", error);
     }
     fileInput.value = "";
   }
@@ -58,12 +58,12 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
     zoomInput.value = "1";
     zoomValue.textContent = "1.0×";
     saveCheckbox.checked = false;
-    setStatus("Default explorer restored.");
+    setStatus("הדמות המקורית הוחזרה.");
     drawPreview();
     onAvatarChange();
     deleteStoredAvatar().catch((error) => {
-      setStatus("Photo removed for this session, but saved photo data could not be cleared.");
-      console.error("Could not remove the saved character photo.", error);
+      setStatus("התמונה הוסרה מהמשחק, אך לא ניתן למחוק את העותק השמור.");
+      console.error("מחיקת תמונת הדמות השמורה נכשלה.", error);
     });
   }
 
@@ -82,10 +82,10 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
         offsetX: avatar.offsetX,
         offsetY: avatar.offsetY,
       });
-      setStatus("Photo saved on this device only.");
+      setStatus("התמונה נשמרה במכשיר הזה בלבד.");
     } catch (error) {
-      setStatus("Could not save your photo on this device.");
-      console.error("Could not save the character photo.", error);
+      setStatus("לא ניתן לשמור את התמונה במכשיר הזה.");
+      console.error("שמירת תמונת הדמות נכשלה.", error);
     }
   }
 
@@ -104,12 +104,12 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
       zoomInput.value = String(avatar.zoom);
       zoomValue.textContent = `${avatar.zoom.toFixed(1)}×`;
       saveCheckbox.checked = true;
-      setStatus("Your saved photo is ready.");
+      setStatus("התמונה השמורה מוכנה.");
       drawPreview();
       onAvatarChange();
     } catch (error) {
-      setStatus("Could not restore the saved photo. The default explorer is ready.");
-      console.error("Could not restore the saved character photo.", error);
+      setStatus("לא ניתן לשחזר את התמונה. הדמות המקורית מוכנה למשחק.");
+      console.error("שחזור תמונת הדמות השמורה נכשל.", error);
     }
   }
 
@@ -121,10 +121,10 @@ export function createAvatarCustomization({ fileInput, preview, zoomInput, zoomV
     } else if (!saveCheckbox.checked) {
       try {
         await deleteStoredAvatar();
-        if (avatar) setStatus("Photo will only be used for this session.");
+        if (avatar) setStatus("התמונה תשמש במשחק הזה בלבד.");
       } catch (error) {
-        setStatus("Could not clear the saved photo.");
-        console.error("Could not clear the saved character photo.", error);
+        setStatus("לא ניתן למחוק את התמונה השמורה.");
+        console.error("מחיקת תמונת הדמות השמורה נכשלה.", error);
       }
     }
   });
@@ -176,7 +176,7 @@ function loadImage(blob) {
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("Image decoding failed."));
+      reject(new Error("פענוח התמונה נכשל."));
     };
     image.src = url;
   });
@@ -225,7 +225,7 @@ function drawDefaultHead(context) {
 function openDatabase() {
   return new Promise((resolve, reject) => {
     if (!("indexedDB" in window)) {
-      reject(new Error("IndexedDB is unavailable."));
+      reject(new Error("מסד הנתונים המקומי אינו זמין."));
       return;
     }
     const request = indexedDB.open(DATABASE_NAME, 1);
@@ -235,7 +235,7 @@ function openDatabase() {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || new Error("Could not open photo storage."));
+    request.onerror = () => reject(request.error || new Error("פתיחת אחסון התמונות נכשלה."));
   });
 }
 
@@ -244,7 +244,7 @@ async function getStoredAvatar() {
   return new Promise((resolve, reject) => {
     const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(AVATAR_KEY);
     request.onsuccess = () => { database.close(); resolve(request.result || null); };
-    request.onerror = () => { database.close(); reject(request.error || new Error("Could not read saved photo.")); };
+    request.onerror = () => { database.close(); reject(request.error || new Error("קריאת התמונה השמורה נכשלה.")); };
   });
 }
 
@@ -254,7 +254,7 @@ async function putStoredAvatar(value) {
     const transaction = database.transaction(STORE_NAME, "readwrite");
     transaction.objectStore(STORE_NAME).put(value, AVATAR_KEY);
     transaction.oncomplete = () => { database.close(); resolve(); };
-    transaction.onerror = () => { database.close(); reject(transaction.error || new Error("Could not save photo.")); };
+    transaction.onerror = () => { database.close(); reject(transaction.error || new Error("שמירת התמונה נכשלה.")); };
   });
 }
 
@@ -264,6 +264,6 @@ async function deleteStoredAvatar() {
     const transaction = database.transaction(STORE_NAME, "readwrite");
     transaction.objectStore(STORE_NAME).delete(AVATAR_KEY);
     transaction.oncomplete = () => { database.close(); resolve(); };
-    transaction.onerror = () => { database.close(); reject(transaction.error || new Error("Could not remove saved photo.")); };
+    transaction.onerror = () => { database.close(); reject(transaction.error || new Error("מחיקת התמונה השמורה נכשלה.")); };
   });
 }

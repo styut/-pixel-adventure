@@ -6,19 +6,20 @@ const door = (x, area, targetX, label, options = {}) => ({
 });
 
 export const caveLevel = {
-  name: "The Hollow Below",
+  name: "המערה הנסתרת",
   underground: true,
   startArea: 0,
   areas: [
     {
-      name: "A · Cave Entrance",
+      name: "א׳ · פתח המערה",
       width: 1020,
       platforms: [
         floor(0, 1020), ledge(185, 394, 128), ledge(385, 340, 112),
         ledge(590, 385, 138), ledge(762, 328, 112),
       ],
       coins: [[216,350],[260,350],[420,296],[458,296],[630,341],[674,341],[800,286]],
-      tunnels: [door(910, 1, 90, "Enter the first tunnel")],
+      boxes: [{ x: 510, y: 380, reward: "coins" }],
+      tunnels: [door(910, 1, 90, "המעבר הראשון")],
       checkpoints: [{ x: 180, y: 436 }, { x: 515, y: 436 }],
       stalactites: [{ x: 350, y: 78 }, { x: 710, y: 48 }],
       torches: [[120, 330],[470, 240],[820, 245]],
@@ -26,7 +27,7 @@ export const caveLevel = {
       mushrooms: [[300, 451,"#eb7390"],[880, 450,"#7ce4bc"]],
     },
     {
-      name: "B · First Tunnel",
+      name: "ב׳ · המנהרה הראשונה",
       width: 940,
       platforms: [
         floor(0, 940), ledge(222, 408, 115), ledge(440, 363, 100),
@@ -34,24 +35,25 @@ export const caveLevel = {
       ],
       coins: [[250,364],[475,319],[663,361]],
       tunnels: [
-        door(26, 0, 835, "Back to the cave entrance"),
-        door(850, 2, 88, "Into the toad caves"),
+        door(26, 0, 835, "חזרה לפתח המערה"),
+        door(850, 2, 88, "אל מערות הקרפדות"),
       ],
       torches: [[170, 315],[515, 278],[770, 320]],
       crystals: [[355, 437,"#72dafa"]],
       mushrooms: [[565, 451,"#e888bc"]],
     },
     {
-      name: "C · Fire Toad Territory",
+      name: "ג׳ · ממלכת קרפדות האש",
       width: 1150,
       platforms: [
         floor(0, 1150), ledge(205, 397, 118), ledge(416, 346, 138),
         ledge(655, 388, 124), ledge(844, 328, 144),
       ],
       coins: [[238,353],[459,302],[500,302],[694,344],[882,284],[927,284]],
+      boxes: [{ x: 580, y: 380, reward: "star" }],
       tunnels: [
-        door(26, 1, 805, "Back to the first tunnel"),
-        door(1060, 3, 92, "Down to the lava crossing"),
+        door(26, 1, 805, "חזרה למנהרה הראשונה"),
+        door(1060, 3, 92, "אל חציית הלבה"),
       ],
       fireToads: [
         { x: 340, y: 432, min: 275, max: 490, speed: 28, range: 390, cooldown: 1.6 },
@@ -64,7 +66,7 @@ export const caveLevel = {
       mushrooms: [[520, 451,"#df7195"]],
     },
     {
-      name: "D · Lava Crossing",
+      name: "ד׳ · חציית הלבה",
       width: 1450,
       platforms: [
         floor(0, 420), floor(590, 280), floor(1090, 360),
@@ -77,9 +79,9 @@ export const caveLevel = {
       lava: [{ x: 420, y: 451, w: 170, h: 100 }, { x: 870, y: 451, w: 220, h: 100 }],
       coins: [[256,430],[444,376],[490,375],[565,376],[650,347],[715,347],[841,372],[930,370],[1000,370],[1165,325],[1210,325],[1280,430]],
       tunnels: [
-        door(26, 2, 1015, "Back to the toad caves"),
-        door(715, 4, 90, "Secret bonus room", { secret: true }),
-        door(1352, 5, 88, "Escape toward the surface"),
+        door(26, 2, 1015, "חזרה למערות הקרפדות"),
+        door(715, 4, 90, "חדר אוצר סודי", { secret: true }),
+        door(1352, 5, 88, "היציאה אל פני השטח"),
       ],
       checkpoints: [{ x: 105, y: 436 }, { x: 630, y: 436 }, { x: 1110, y: 436 }],
       stalactites: [{ x: 335, y: 55 }, { x: 685, y: 44 }, { x: 1180, y: 50 }],
@@ -89,18 +91,18 @@ export const caveLevel = {
       mushrooms: [[285, 451,"#f07892"],[1040, 451,"#7de1bd"]],
     },
     {
-      name: "E · Hidden Cache",
+      name: "ה׳ · חדר האוצר הסודי",
       width: 640,
       platforms: [floor(0, 640), ledge(182, 378, 115), ledge(380, 337, 128)],
       coins: [[138,421],[186,421],[228,336],[266,336],[401,294],[449,294],[525,430],[552,430]],
-      tunnels: [door(26, 3, 790, "Return to the lava crossing")],
+      tunnels: [door(26, 3, 790, "חזרה לחציית הלבה")],
       torches: [[152, 300],[445, 258]],
       crystals: [[320, 433,"#85e4ff"]],
       mushrooms: [[565, 451,"#f17da3"]],
       secretRoom: true,
     },
     {
-      name: "F · Final Escape",
+      name: "ו׳ · הבריחה האחרונה",
       width: 1450,
       platforms: [
         floor(0, 330), floor(505, 245), floor(830, 230), floor(1190, 260),
@@ -110,7 +112,8 @@ export const caveLevel = {
       movingPlatforms: [{ x: 716, y: 421, w: 82, h: 18, range: 35, speed: 1.1, phase: 0.8 }],
       lava: [{ x: 330, y: 451, w: 175, h: 100 }, { x: 750, y: 451, w: 80, h: 100 }, { x: 1060, y: 451, w: 130, h: 100 }],
       coins: [[175,426],[366,366],[415,366],[552,420],[700,331],[946,310],[1110,354],[1255,430],[1320,430]],
-      tunnels: [door(26, 3, 1305, "Back to the lava crossing")],
+      boxes: [{ x: 590, y: 380, reward: "heart" }],
+      tunnels: [door(26, 3, 1305, "חזרה לחציית הלבה")],
       checkpoints: [{ x: 100, y: 436 }, { x: 645, y: 436 }, { x: 1015, y: 436 }],
       stalactites: [{ x: 270, y: 47 }, { x: 565, y: 56 }, { x: 885, y: 45 }, { x: 1150, y: 52 }],
       fireTraps: [
