@@ -1,0 +1,23 @@
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local logs and environment settings
+*.log
+.env
+.env.*
+!.env.example
+
+# Personal photos and local media; game artwork is drawn by Canvas
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.bmp
+*.heic
+*.mp4
+*.mov
